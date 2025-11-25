@@ -134,14 +134,6 @@ export default function Home() {
             </Button>
           </Link>
 
-          <Link href="/admin" className="block">
-            <Button 
-              className="w-full h-12 text-base font-medium bg-gray-700 hover:bg-gray-800 text-white"
-              size="lg"
-            >
-              🛡️ Admin - จัดการคำขอ
-            </Button>
-          </Link>
         </div>
 
         {/* Emergency Contacts */}
