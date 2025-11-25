@@ -3,7 +3,7 @@
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
-import { ArrowLeft, MapPin, Loader2, Camera, AlertTriangle } from 'lucide-react';
+import { ArrowLeft, MapPin, Loader2, AlertTriangle } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -33,6 +33,11 @@ export default function ReportPage() {
     description: '',
     latitude: 0,
     longitude: 0,
+    hasChildren: false,
+    hasElderly: false,
+    hasDisabled: false,
+    hasPregnant: false,
+    peopleCount: 1,
   });
 
   const getLocation = () => {
@@ -86,6 +91,11 @@ export default function ReportPage() {
         description: formData.description,
         latitude: formData.latitude || 7.0086,
         longitude: formData.longitude || 100.4747,
+        has_children: formData.hasChildren,
+        has_elderly: formData.hasElderly,
+        has_disabled: formData.hasDisabled,
+        has_pregnant: formData.hasPregnant,
+        people_count: formData.peopleCount,
       });
 
     if (error) {
@@ -284,17 +294,72 @@ export default function ReportPage() {
             </CardContent>
           </Card>
 
-          {/* Photo Upload (Mock) */}
-          <Card>
-            <CardContent className="pt-4">
-              <Label>แนบรูปภาพ (ถ้ามี)</Label>
-              <div className="mt-2 border-2 border-dashed border-gray-300 rounded-lg p-6 text-center">
-                <Camera className="w-8 h-8 mx-auto text-gray-400" />
-                <p className="text-sm text-gray-500 mt-2">แตะเพื่อถ่ายรูปหรือเลือกจากอัลบั้ม</p>
-                <input type="file" accept="image/*" className="hidden" />
-                <Button type="button" variant="outline" className="mt-2" disabled>
-                  เลือกรูปภาพ
-                </Button>
+          {/* Vulnerable People */}
+          <Card className="border-2 border-orange-200 bg-orange-50">
+            <CardHeader className="pb-2">
+              <CardTitle className="text-base text-orange-800">
+                👥 ข้อมูลผู้ประสบภัย
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <div>
+                <Label>จำนวนคน</Label>
+                <Input
+                  type="number"
+                  min="1"
+                  value={formData.peopleCount}
+                  onChange={(e) => setFormData(prev => ({ ...prev, peopleCount: parseInt(e.target.value) || 1 }))}
+                  className="mt-1 w-24"
+                />
+              </div>
+              
+              <div>
+                <Label className="mb-2 block">มีกลุ่มเปราะบาง (เลือกได้หลายข้อ)</Label>
+                <div className="grid grid-cols-2 gap-3">
+                  <label className={`flex items-center gap-2 p-3 rounded-lg border-2 cursor-pointer transition-all ${formData.hasChildren ? 'border-blue-500 bg-blue-50' : 'border-gray-200 bg-white'}`}>
+                    <input
+                      type="checkbox"
+                      checked={formData.hasChildren}
+                      onChange={(e) => setFormData(prev => ({ ...prev, hasChildren: e.target.checked }))}
+                      className="w-5 h-5"
+                    />
+                    <span className="text-2xl">👶</span>
+                    <span className="text-sm font-medium">เด็กเล็ก</span>
+                  </label>
+                  
+                  <label className={`flex items-center gap-2 p-3 rounded-lg border-2 cursor-pointer transition-all ${formData.hasElderly ? 'border-blue-500 bg-blue-50' : 'border-gray-200 bg-white'}`}>
+                    <input
+                      type="checkbox"
+                      checked={formData.hasElderly}
+                      onChange={(e) => setFormData(prev => ({ ...prev, hasElderly: e.target.checked }))}
+                      className="w-5 h-5"
+                    />
+                    <span className="text-2xl">👴</span>
+                    <span className="text-sm font-medium">ผู้สูงอายุ</span>
+                  </label>
+                  
+                  <label className={`flex items-center gap-2 p-3 rounded-lg border-2 cursor-pointer transition-all ${formData.hasDisabled ? 'border-blue-500 bg-blue-50' : 'border-gray-200 bg-white'}`}>
+                    <input
+                      type="checkbox"
+                      checked={formData.hasDisabled}
+                      onChange={(e) => setFormData(prev => ({ ...prev, hasDisabled: e.target.checked }))}
+                      className="w-5 h-5"
+                    />
+                    <span className="text-2xl">♿</span>
+                    <span className="text-sm font-medium">ผู้พิการ</span>
+                  </label>
+                  
+                  <label className={`flex items-center gap-2 p-3 rounded-lg border-2 cursor-pointer transition-all ${formData.hasPregnant ? 'border-blue-500 bg-blue-50' : 'border-gray-200 bg-white'}`}>
+                    <input
+                      type="checkbox"
+                      checked={formData.hasPregnant}
+                      onChange={(e) => setFormData(prev => ({ ...prev, hasPregnant: e.target.checked }))}
+                      className="w-5 h-5"
+                    />
+                    <span className="text-2xl">🤰</span>
+                    <span className="text-sm font-medium">หญิงตั้งครรภ์</span>
+                  </label>
+                </div>
               </div>
             </CardContent>
           </Card>

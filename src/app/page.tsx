@@ -1,33 +1,78 @@
+'use client';
+
+import { useState, useEffect } from 'react';
 import { supabase } from '@/lib/supabase';
 import Link from 'next/link';
 import { AlertTriangle, MapPin, Phone, Clock, Info, CheckCircle } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 
-async function getStats() {
-  const { data: requests } = await supabase
-    .from('sos_requests')
-    .select('status');
-  
-  const pending = requests?.filter(r => r.status === 'pending').length || 0;
-  const inProgress = requests?.filter(r => r.status === 'in_progress').length || 0;
-  
-  return { pending, inProgress };
-}
+type Update = {
+  id: string;
+  message: string;
+  type: 'info' | 'warning' | 'success';
+  created_at: string;
+};
 
-async function getUpdates() {
-  const { data } = await supabase
-    .from('updates')
-    .select('*')
-    .order('created_at', { ascending: false })
-    .limit(5);
-  
-  return data || [];
-}
+export default function Home() {
+  const [stats, setStats] = useState({ pending: 0, inProgress: 0 });
+  const [updates, setUpdates] = useState<Update[]>([]);
 
-export default async function Home() {
-  const stats = await getStats();
-  const updates = await getUpdates();
+  useEffect(() => {
+    // Fetch initial data
+    async function fetchData() {
+      const { data: requests } = await supabase
+        .from('sos_requests')
+        .select('status');
+      
+      const pending = requests?.filter(r => r.status === 'pending').length || 0;
+      const inProgress = requests?.filter(r => r.status === 'in_progress').length || 0;
+      setStats({ pending, inProgress });
+
+      const { data: updatesData } = await supabase
+        .from('updates')
+        .select('*')
+        .order('created_at', { ascending: false })
+        .limit(5);
+      
+      setUpdates(updatesData || []);
+    }
+
+    fetchData();
+
+    // Subscribe to realtime updates for sos_requests
+    const sosChannel = supabase
+      .channel('sos_realtime')
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'sos_requests' }, async () => {
+        const { data: requests } = await supabase
+          .from('sos_requests')
+          .select('status');
+        
+        const pending = requests?.filter(r => r.status === 'pending').length || 0;
+        const inProgress = requests?.filter(r => r.status === 'in_progress').length || 0;
+        setStats({ pending, inProgress });
+      })
+      .subscribe();
+
+    // Subscribe to realtime updates for news/updates
+    const updatesChannel = supabase
+      .channel('updates_realtime')
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'updates' }, async () => {
+        const { data: updatesData } = await supabase
+          .from('updates')
+          .select('*')
+          .order('created_at', { ascending: false })
+          .limit(5);
+        
+        setUpdates(updatesData || []);
+      })
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(sosChannel);
+      supabase.removeChannel(updatesChannel);
+    };
+  }, []);
 
   return (
     <div className="min-h-screen bg-gray-900">
@@ -86,6 +131,15 @@ export default async function Home() {
             >
               <MapPin className="w-8 h-8 mr-3" />
               🔵 ดูแผนที่สด (LIVE MAP)
+            </Button>
+          </Link>
+
+          <Link href="/admin" className="block">
+            <Button 
+              className="w-full h-12 text-base font-medium bg-gray-700 hover:bg-gray-800 text-white"
+              size="lg"
+            >
+              🛡️ Admin - จัดการคำขอ
             </Button>
           </Link>
         </div>

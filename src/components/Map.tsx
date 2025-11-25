@@ -46,8 +46,16 @@ const severityLabels = {
   low: 'ไม่เร่งด่วน',
 };
 
+interface ExtendedSOSRequest extends SOSRequest {
+  hasChildren?: boolean;
+  hasElderly?: boolean;
+  hasDisabled?: boolean;
+  hasPregnant?: boolean;
+  peopleCount?: number;
+}
+
 interface MapComponentProps {
-  requests: SOSRequest[];
+  requests: ExtendedSOSRequest[];
   center?: [number, number];
   zoom?: number;
 }
@@ -85,6 +93,19 @@ export default function MapComponent({
               </div>
               
               <h3 className="font-bold text-gray-800">{request.name}</h3>
+              
+              {/* Vulnerable People Icons */}
+              {(request.hasChildren || request.hasElderly || request.hasDisabled || request.hasPregnant) && (
+                <div className="flex items-center gap-1 mt-1 p-1 bg-orange-100 rounded">
+                  {request.hasChildren && <span title="มีเด็กเล็ก">👶</span>}
+                  {request.hasElderly && <span title="มีผู้สูงอายุ">👴</span>}
+                  {request.hasDisabled && <span title="มีผู้พิการ">♿</span>}
+                  {request.hasPregnant && <span title="มีหญิงตั้งครรภ์">🤰</span>}
+                  {request.peopleCount && request.peopleCount > 1 && (
+                    <span className="text-xs text-orange-700 ml-1">({request.peopleCount} คน)</span>
+                  )}
+                </div>
+              )}
               
               <div className="flex items-center gap-1 text-sm text-gray-600 mt-1">
                 <Phone className="w-3 h-3" />

@@ -46,6 +46,11 @@ export default function MapPage() {
           longitude: r.longitude,
           status: r.status,
           createdAt: new Date(r.created_at),
+          hasChildren: r.has_children || false,
+          hasElderly: r.has_elderly || false,
+          hasDisabled: r.has_disabled || false,
+          hasPregnant: r.has_pregnant || false,
+          peopleCount: r.people_count || 1,
         }));
         setRequests(transformed);
       }
