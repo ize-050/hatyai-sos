@@ -59,6 +59,11 @@ export default function MapPage() {
 
     fetchRequests();
 
+    // Auto refresh every 60 seconds
+    const interval = setInterval(() => {
+      fetchRequests();
+    }, 60000);
+
     // Subscribe to realtime updates
     const channel = supabase
       .channel('sos_requests_changes')
@@ -68,6 +73,7 @@ export default function MapPage() {
       .subscribe();
 
     return () => {
+      clearInterval(interval);
       supabase.removeChannel(channel);
     };
   }, []);

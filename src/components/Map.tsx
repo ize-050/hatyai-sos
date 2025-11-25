@@ -7,19 +7,38 @@ import { SOSRequest } from '@/lib/types';
 import { Phone, Clock } from 'lucide-react';
 
 // Fix for default marker icons in Leaflet with webpack
-const createIcon = (color: string) => {
+const createIcon = (color: string, icons: string[] = []) => {
+  const iconsHtml = icons.length > 0 
+    ? `<div style="
+        position: absolute;
+        top: -20px;
+        left: 50%;
+        transform: translateX(-50%);
+        background: white;
+        padding: 2px 4px;
+        border-radius: 8px;
+        font-size: 12px;
+        white-space: nowrap;
+        box-shadow: 0 1px 3px rgba(0,0,0,0.3);
+        z-index: 1000;
+      ">${icons.join('')}</div>`
+    : '';
+
   return L.divIcon({
     className: 'custom-marker',
     html: `
-      <div style="
-        background-color: ${color};
-        width: 30px;
-        height: 30px;
-        border-radius: 50% 50% 50% 0;
-        transform: rotate(-45deg);
-        border: 3px solid white;
-        box-shadow: 0 2px 5px rgba(0,0,0,0.3);
-      "></div>
+      <div style="position: relative;">
+        ${iconsHtml}
+        <div style="
+          background-color: ${color};
+          width: 30px;
+          height: 30px;
+          border-radius: 50% 50% 50% 0;
+          transform: rotate(-45deg);
+          border: 3px solid white;
+          box-shadow: 0 2px 5px rgba(0,0,0,0.3);
+        "></div>
+      </div>
     `,
     iconSize: [30, 30],
     iconAnchor: [15, 30],
@@ -81,7 +100,15 @@ export default function MapComponent({
         <Marker
           key={request.id}
           position={[request.latitude, request.longitude]}
-          icon={createIcon(severityColors[request.severity])}
+          icon={createIcon(
+            severityColors[request.severity],
+            [
+              request.hasChildren ? '👶' : '',
+              request.hasElderly ? '👴' : '',
+              request.hasDisabled ? '♿' : '',
+              request.hasPregnant ? '🤰' : '',
+            ].filter(Boolean)
+          )}
         >
           <Popup>
             <div className="min-w-[200px]">
