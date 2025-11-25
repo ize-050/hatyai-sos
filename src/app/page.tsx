@@ -3,7 +3,7 @@
 import { useState, useEffect } from 'react';
 import { supabase } from '@/lib/supabase';
 import Link from 'next/link';
-import { AlertTriangle, MapPin, Phone, Clock, Info, CheckCircle } from 'lucide-react';
+import { AlertTriangle, MapPin, Phone, Clock, Info, CheckCircle, Building2 } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 
@@ -134,6 +134,15 @@ export default function Home() {
             </Button>
           </Link>
 
+          <Link href="/shelter" className="block">
+            <Button 
+              className="w-full h-16 text-lg font-bold bg-[#34C759] hover:bg-green-700 text-white shadow-lg"
+              size="lg"
+            >
+              <Building2 className="w-7 h-7 mr-3" />
+              🟢 ลงทะเบียนศูนย์อพยพ
+            </Button>
+          </Link>
         </div>
 
         {/* Emergency Contacts */}

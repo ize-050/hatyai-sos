@@ -3,10 +3,11 @@
 import { useState, useEffect } from 'react';
 import Link from 'next/link';
 import dynamic from 'next/dynamic';
-import { ArrowLeft, AlertTriangle, Filter } from 'lucide-react';
+import { ArrowLeft, AlertTriangle, Filter, Building2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { supabase } from '@/lib/supabase';
 import { SOSRequest, Severity, HelpType } from '@/lib/types';
+import { EvacuationCenter } from '@/lib/evacuation-types';
 
 // Dynamic import for Map component to avoid SSR issues with Leaflet
 const MapComponent = dynamic(() => import('@/components/Map'), {
@@ -23,7 +24,9 @@ const MapComponent = dynamic(() => import('@/components/Map'), {
 
 export default function MapPage() {
   const [requests, setRequests] = useState<SOSRequest[]>([]);
+  const [shelters, setShelters] = useState<EvacuationCenter[]>([]);
   const [filter, setFilter] = useState<Severity | 'all'>('all');
+  const [showShelters, setShowShelters] = useState(true);
   const [showLegend, setShowLegend] = useState(true);
   const [loading, setLoading] = useState(true);
 
@@ -57,24 +60,45 @@ export default function MapPage() {
       setLoading(false);
     }
 
+    async function fetchShelters() {
+      const { data, error } = await supabase
+        .from('evacuation_centers')
+        .select('*')
+        .order('created_at', { ascending: false });
+
+      if (!error && data) {
+        setShelters(data as EvacuationCenter[]);
+      }
+    }
+
     fetchRequests();
+    fetchShelters();
 
     // Auto refresh every 60 seconds
     const interval = setInterval(() => {
       fetchRequests();
+      fetchShelters();
     }, 60000);
 
     // Subscribe to realtime updates
-    const channel = supabase
+    const sosChannel = supabase
       .channel('sos_requests_changes')
       .on('postgres_changes', { event: '*', schema: 'public', table: 'sos_requests' }, () => {
         fetchRequests();
       })
       .subscribe();
 
+    const shelterChannel = supabase
+      .channel('shelters_changes')
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'evacuation_centers' }, () => {
+        fetchShelters();
+      })
+      .subscribe();
+
     return () => {
       clearInterval(interval);
-      supabase.removeChannel(channel);
+      supabase.removeChannel(sosChannel);
+      supabase.removeChannel(shelterChannel);
     };
   }, []);
 
@@ -86,6 +110,12 @@ export default function MapPage() {
     high: requests.filter(r => r.severity === 'high').length,
     medium: requests.filter(r => r.severity === 'medium').length,
     low: requests.filter(r => r.severity === 'low').length,
+  };
+
+  const shelterCounts = {
+    open: shelters.filter(s => s.status === 'open').length,
+    full: shelters.filter(s => s.status === 'full').length,
+    closed: shelters.filter(s => s.status === 'closed').length,
   };
 
   return (
@@ -117,9 +147,10 @@ export default function MapPage() {
 
       {/* Legend & Filter */}
       {showLegend && (
-        <div className="bg-white border-b px-4 py-2 shrink-0">
+        <div className="bg-white border-b px-4 py-2 shrink-0 space-y-2">
+          {/* SOS Filter */}
           <div className="flex items-center gap-2 flex-wrap">
-            <span className="text-xs text-gray-500 mr-2">กรอง:</span>
+            <span className="text-xs text-gray-500 mr-2">🔴 SOS:</span>
             <Button
               size="sm"
               variant={filter === 'all' ? 'default' : 'outline'}
@@ -156,15 +187,40 @@ export default function MapPage() {
               ไม่เร่งด่วน ({counts.low})
             </Button>
           </div>
+          
+          {/* Shelter Toggle */}
+          <div className="flex items-center gap-2 flex-wrap">
+            <span className="text-xs text-gray-500 mr-2">🏠 ศูนย์อพยพ:</span>
+            <Button
+              size="sm"
+              variant={showShelters ? 'default' : 'outline'}
+              onClick={() => setShowShelters(!showShelters)}
+              className={`h-7 text-xs ${showShelters ? 'bg-green-600 hover:bg-green-700' : ''}`}
+            >
+              <Building2 className="w-3 h-3 mr-1" />
+              {showShelters ? 'ซ่อน' : 'แสดง'} ({shelters.length})
+            </Button>
+            {showShelters && (
+              <>
+                <span className="text-xs text-green-600">🟢 เปิด ({shelterCounts.open})</span>
+                <span className="text-xs text-yellow-600">🟡 เต็ม ({shelterCounts.full})</span>
+                <span className="text-xs text-gray-500">⚫ ปิด ({shelterCounts.closed})</span>
+              </>
+            )}
+          </div>
         </div>
       )}
 
       {/* Map Container */}
       <div className="flex-1 relative">
-        <MapComponent requests={filteredRequests} />
+        <MapComponent 
+          requests={filteredRequests} 
+          shelters={shelters}
+          showShelters={showShelters}
+        />
         
         {/* SOS Button Overlay */}
-        <div className="absolute bottom-4 left-4 right-4 z-1000">
+        <div className="absolute bottom-4 left-4 right-4 z-1000 space-y-2">
           <Link href="/report">
             <Button className="w-full h-12 bg-[#FF3B30] hover:bg-red-700 text-white font-bold shadow-lg">
               <AlertTriangle className="w-5 h-5 mr-2" />
