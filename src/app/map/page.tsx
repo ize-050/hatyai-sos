@@ -1,13 +1,12 @@
 'use client';
 
-import { useState, useSyncExternalStore, useCallback } from 'react';
+import { useState, useEffect } from 'react';
 import Link from 'next/link';
 import dynamic from 'next/dynamic';
 import { ArrowLeft, AlertTriangle, Filter } from 'lucide-react';
 import { Button } from '@/components/ui/button';
-import { getStoredRequests } from '@/lib/store';
-import { SOSRequest, Severity } from '@/lib/types';
-import { mockSOSRequests } from '@/lib/mock-data';
+import { supabase } from '@/lib/supabase';
+import { SOSRequest, Severity, HelpType } from '@/lib/types';
 
 // Dynamic import for Map component to avoid SSR issues with Leaflet
 const MapComponent = dynamic(() => import('@/components/Map'), {
@@ -22,33 +21,51 @@ const MapComponent = dynamic(() => import('@/components/Map'), {
   ),
 });
 
-// Custom hook to sync with localStorage
-function useRequests() {
-  const subscribe = useCallback((callback: () => void) => {
-    window.addEventListener('storage', callback);
-    return () => window.removeEventListener('storage', callback);
-  }, []);
-  
-  const getSnapshot = useCallback(() => {
-    return JSON.stringify(getStoredRequests());
-  }, []);
-  
-  const getServerSnapshot = useCallback(() => {
-    return JSON.stringify(mockSOSRequests);
-  }, []);
-  
-  const data = useSyncExternalStore(subscribe, getSnapshot, getServerSnapshot);
-  return JSON.parse(data) as SOSRequest[];
-}
-
 export default function MapPage() {
-  const rawRequests = useRequests();
-  const requests = rawRequests.map(r => ({
-    ...r,
-    createdAt: new Date(r.createdAt),
-  }));
+  const [requests, setRequests] = useState<SOSRequest[]>([]);
   const [filter, setFilter] = useState<Severity | 'all'>('all');
   const [showLegend, setShowLegend] = useState(true);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    async function fetchRequests() {
+      const { data, error } = await supabase
+        .from('sos_requests')
+        .select('*')
+        .order('created_at', { ascending: false });
+
+      if (!error && data) {
+        const transformed = data.map(r => ({
+          id: r.id,
+          name: r.name || 'ไม่ระบุชื่อ',
+          phone: r.phone,
+          helpType: r.help_type as HelpType,
+          severity: r.severity as Severity,
+          description: r.description || '',
+          latitude: r.latitude,
+          longitude: r.longitude,
+          status: r.status,
+          createdAt: new Date(r.created_at),
+        }));
+        setRequests(transformed);
+      }
+      setLoading(false);
+    }
+
+    fetchRequests();
+
+    // Subscribe to realtime updates
+    const channel = supabase
+      .channel('sos_requests_changes')
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'sos_requests' }, () => {
+        fetchRequests();
+      })
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, []);
 
   const filteredRequests = filter === 'all' 
     ? requests 

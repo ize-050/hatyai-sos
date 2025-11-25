@@ -1,36 +1,76 @@
 'use client';
 
-import { SOSRequest } from './types';
-import { mockSOSRequests } from './mock-data';
+import { supabase, DbSOSRequest } from './supabase';
+import { SOSRequest, HelpType, Severity } from './types';
 
-// Client-side store using localStorage for persistence
-const STORAGE_KEY = 'hatyai-crisis-requests';
+// Transform database record to app type
+const transformRequest = (db: DbSOSRequest): SOSRequest => ({
+  id: db.id,
+  name: db.name || 'ไม่ระบุชื่อ',
+  phone: db.phone,
+  helpType: db.help_type as HelpType,
+  severity: db.severity as Severity,
+  description: db.description || '',
+  latitude: db.latitude,
+  longitude: db.longitude,
+  photoUrl: db.photo_url || undefined,
+  status: db.status,
+  createdAt: new Date(db.created_at),
+});
 
-export const getStoredRequests = (): SOSRequest[] => {
-  if (typeof window === 'undefined') return mockSOSRequests;
-  
-  const stored = localStorage.getItem(STORAGE_KEY);
-  if (!stored) {
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(mockSOSRequests));
-    return mockSOSRequests;
+// Fetch all SOS requests from Supabase
+export const getStoredRequests = async (): Promise<SOSRequest[]> => {
+  const { data, error } = await supabase
+    .from('sos_requests')
+    .select('*')
+    .order('created_at', { ascending: false });
+
+  if (error) {
+    console.error('Error fetching requests:', error);
+    return [];
   }
-  
-  return JSON.parse(stored).map((r: SOSRequest) => ({
-    ...r,
-    createdAt: new Date(r.createdAt),
-  }));
+
+  return (data || []).map(transformRequest);
 };
 
-export const addRequest = (request: Omit<SOSRequest, 'id' | 'createdAt' | 'status'>): SOSRequest => {
-  const requests = getStoredRequests();
-  const newRequest: SOSRequest = {
-    ...request,
-    id: Date.now().toString(),
-    createdAt: new Date(),
-    status: 'pending',
-  };
-  
-  const updated = [newRequest, ...requests];
-  localStorage.setItem(STORAGE_KEY, JSON.stringify(updated));
-  return newRequest;
+// Add new SOS request to Supabase
+export const addRequest = async (
+  request: Omit<SOSRequest, 'id' | 'createdAt' | 'status'>
+): Promise<SOSRequest | null> => {
+  const { data, error } = await supabase
+    .from('sos_requests')
+    .insert({
+      name: request.name,
+      phone: request.phone,
+      help_type: request.helpType,
+      severity: request.severity,
+      description: request.description,
+      latitude: request.latitude,
+      longitude: request.longitude,
+      photo_url: request.photoUrl,
+    })
+    .select()
+    .single();
+
+  if (error) {
+    console.error('Error adding request:', error);
+    return null;
+  }
+
+  return transformRequest(data);
+};
+
+// Fetch updates from Supabase
+export const getUpdates = async () => {
+  const { data, error } = await supabase
+    .from('updates')
+    .select('*')
+    .order('created_at', { ascending: false });
+
+  if (error) {
+    console.error('Error fetching updates:', error);
+    return [];
+  }
+
+  return data || [];
 };

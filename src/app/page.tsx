@@ -1,12 +1,33 @@
+import { supabase } from '@/lib/supabase';
 import Link from 'next/link';
 import { AlertTriangle, MapPin, Phone, Clock, Info, CheckCircle } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-import { mockUpdates, mockSOSRequests } from '@/lib/mock-data';
 
-export default function Home() {
-  const pendingRequests = mockSOSRequests.filter(r => r.status === 'pending').length;
-  const inProgressRequests = mockSOSRequests.filter(r => r.status === 'in_progress').length;
+async function getStats() {
+  const { data: requests } = await supabase
+    .from('sos_requests')
+    .select('status');
+  
+  const pending = requests?.filter(r => r.status === 'pending').length || 0;
+  const inProgress = requests?.filter(r => r.status === 'in_progress').length || 0;
+  
+  return { pending, inProgress };
+}
+
+async function getUpdates() {
+  const { data } = await supabase
+    .from('updates')
+    .select('*')
+    .order('created_at', { ascending: false })
+    .limit(5);
+  
+  return data || [];
+}
+
+export default async function Home() {
+  const stats = await getStats();
+  const updates = await getUpdates();
 
   return (
     <div className="min-h-screen bg-gray-900">
@@ -34,13 +55,13 @@ export default function Home() {
         <div className="grid grid-cols-2 gap-4">
           <Card className="bg-orange-500 text-white border-0">
             <CardContent className="p-4 text-center">
-              <p className="text-3xl font-bold">{pendingRequests}</p>
+              <p className="text-3xl font-bold">{stats.pending}</p>
               <p className="text-sm">รอความช่วยเหลือ</p>
             </CardContent>
           </Card>
           <Card className="bg-blue-500 text-white border-0">
             <CardContent className="p-4 text-center">
-              <p className="text-3xl font-bold">{inProgressRequests}</p>
+              <p className="text-3xl font-bold">{stats.inProgress}</p>
               <p className="text-sm">กำลังดำเนินการ</p>
             </CardContent>
           </Card>
@@ -98,7 +119,7 @@ export default function Home() {
             </CardTitle>
           </CardHeader>
           <CardContent className="space-y-3">
-            {mockUpdates.map((update) => (
+            {updates.map((update) => (
               <div 
                 key={update.id} 
                 className={`p-3 rounded-lg border-l-4 ${
@@ -116,7 +137,7 @@ export default function Home() {
                   <div>
                     <p className="text-sm">{update.message}</p>
                     <p className="text-xs text-gray-500 mt-1">
-                      {update.timestamp.toLocaleString('th-TH')}
+                      {new Date(update.created_at).toLocaleString('th-TH')}
                     </p>
                   </div>
                 </div>

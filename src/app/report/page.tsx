@@ -16,7 +16,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
-import { addRequest } from '@/lib/store';
+import { supabase } from '@/lib/supabase';
 import { HelpType, Severity } from '@/lib/types';
 
 export default function ReportPage() {
@@ -76,18 +76,24 @@ export default function ReportPage() {
 
     setIsSubmitting(true);
     
-    // Simulate API call delay
-    await new Promise(resolve => setTimeout(resolve, 500));
-    
-    addRequest({
-      name: formData.name || 'ไม่ระบุชื่อ',
-      phone: formData.phone,
-      helpType: formData.helpType as HelpType,
-      severity: formData.severity as Severity,
-      description: formData.description,
-      latitude: formData.latitude || 7.0086,
-      longitude: formData.longitude || 100.4747,
-    });
+    const { error } = await supabase
+      .from('sos_requests')
+      .insert({
+        name: formData.name || 'ไม่ระบุชื่อ',
+        phone: formData.phone,
+        help_type: formData.helpType,
+        severity: formData.severity,
+        description: formData.description,
+        latitude: formData.latitude || 7.0086,
+        longitude: formData.longitude || 100.4747,
+      });
+
+    if (error) {
+      console.error('Error:', error);
+      alert('เกิดข้อผิดพลาด กรุณาลองใหม่');
+      setIsSubmitting(false);
+      return;
+    }
 
     router.push('/report/success');
   };
