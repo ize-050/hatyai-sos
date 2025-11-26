@@ -253,7 +253,6 @@ export default function MapComponent({
           }
         `}
         onMouseDown={(e) => e.stopPropagation()}
-        onTouchStart={(e) => e.stopPropagation()}
       >
         {/* Card Header */}
         <div 
