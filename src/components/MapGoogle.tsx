@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useRef, useCallback, useEffect } from 'react';
+import { useState, useRef, useCallback, useEffect, useMemo } from 'react';
 import { GoogleMap, useJsApiLoader, InfoWindow } from '@react-google-maps/api';
 import { GOOGLE_MAPS_OPTIONS } from '@/lib/google-maps-config';
 import { MarkerClusterer } from '@googlemaps/markerclusterer';
@@ -22,9 +22,9 @@ const helpTypeLabels: Record<string, string> = {
 };
 
 const severityLabels: Record<string, string> = {
-  high: 'วิกฤต',
+  high: 'หนาแน่น',
   medium: 'ปานกลาง',
-  low: 'ไม่เร่งด่วน',
+  low: 'เบาบาง',
 };
 
 interface ExtendedSOSRequest extends SOSRequest {
@@ -41,7 +41,81 @@ interface MapComponentProps {
   center?: [number, number];
   zoom?: number;
   showShelters?: boolean;
+  showDensityZones?: boolean;
+  zoneFilter?: 'all' | 'high' | 'medium' | 'low';
 }
+
+// Density zone configuration
+interface DensityZone {
+  center: { lat: number; lng: number };
+  radius: number;
+  density: 'high' | 'medium' | 'low';
+  count: number;
+}
+
+const DENSITY_COLORS = {
+  high: { fill: 'rgba(239, 68, 68, 0.3)', stroke: '#EF4444' },    // แดง
+  medium: { fill: 'rgba(245, 158, 11, 0.3)', stroke: '#F59E0B' }, // เหลือง
+  low: { fill: 'rgba(34, 197, 94, 0.3)', stroke: '#22C55E' },     // เขียว
+};
+
+// Calculate density zones based on pin clustering
+const calculateDensityZones = (requests: ExtendedSOSRequest[], gridSize: number = 0.01): DensityZone[] => {
+  if (requests.length === 0) return [];
+
+  // Group requests into grid cells
+  const grid: { [key: string]: ExtendedSOSRequest[] } = {};
+  
+  requests.forEach(req => {
+    const gridX = Math.floor(req.latitude / gridSize);
+    const gridY = Math.floor(req.longitude / gridSize);
+    const key = `${gridX},${gridY}`;
+    
+    if (!grid[key]) grid[key] = [];
+    grid[key].push(req);
+  });
+
+  // Convert grid cells to density zones
+  const zones: DensityZone[] = [];
+  
+  Object.entries(grid).forEach(([, cellRequests]) => {
+    if (cellRequests.length === 0) return;
+
+    // Calculate center of the zone
+    const centerLat = cellRequests.reduce((sum, r) => sum + r.latitude, 0) / cellRequests.length;
+    const centerLng = cellRequests.reduce((sum, r) => sum + r.longitude, 0) / cellRequests.length;
+    
+    // Determine density level
+    let density: 'high' | 'medium' | 'low';
+    if (cellRequests.length >= 5) {
+      density = 'high';
+    } else if (cellRequests.length >= 3) {
+      density = 'medium';
+    } else {
+      density = 'low';
+    }
+
+    // Calculate radius based on spread of points (min 200m, max 800m)
+    const distances = cellRequests.map(r => 
+      Math.sqrt(Math.pow(r.latitude - centerLat, 2) + Math.pow(r.longitude - centerLng, 2))
+    );
+    const maxDistance = Math.max(...distances);
+    const radius = Math.max(200, Math.min(800, maxDistance * 111000 * 1.5)); // Convert to meters
+
+    zones.push({
+      center: { lat: centerLat, lng: centerLng },
+      radius,
+      density,
+      count: cellRequests.length,
+    });
+  });
+
+  // Sort by density (high first) so high density zones render on top
+  return zones.sort((a, b) => {
+    const order = { high: 0, medium: 1, low: 2 };
+    return order[a.density] - order[b.density];
+  });
+};
 
 // Helper function to open Google Maps navigation
 const openNavigation = (lat: number, lng: number) => {
@@ -100,6 +174,8 @@ export default function MapComponent({
   center = [7.0086, 100.4747],
   zoom = 13,
   showShelters = true,
+  showDensityZones = true,
+  zoneFilter = 'all',
 }: MapComponentProps) {
   const [isExpanded, setIsExpanded] = useState(false);
   const [selectedId, setSelectedId] = useState<string | null>(null);
@@ -109,12 +185,59 @@ export default function MapComponent({
   const mapRef = useRef<google.maps.Map | null>(null);
   const markersRef = useRef<{ [key: string]: google.maps.Marker }>({});
   const clustererRef = useRef<MarkerClusterer | null>(null);
+  const circlesRef = useRef<google.maps.Circle[]>([]);
 
   const { isLoaded, loadError } = useJsApiLoader(GOOGLE_MAPS_OPTIONS);
 
   const onMapLoad = useCallback((map: google.maps.Map) => {
     mapRef.current = map;
   }, []);
+
+  // Calculate density zones (memoized)
+  const densityZones = useMemo(() => {
+    if (showDensityZones && requests.length > 0) {
+      return calculateDensityZones(requests);
+    }
+    return [];
+  }, [requests, showDensityZones]);
+
+  // Filter zones based on selected density level
+  const filteredZones = useMemo(() => {
+    if (zoneFilter === 'all') return densityZones;
+    return densityZones.filter(zone => zone.density === zoneFilter);
+  }, [densityZones, zoneFilter]);
+
+  // Manage density zone circles
+  useEffect(() => {
+    // Clear existing circles
+    circlesRef.current.forEach(circle => circle.setMap(null));
+    circlesRef.current = [];
+
+    // Only create circles if showDensityZones is true and map is ready
+    if (!mapRef.current || !showDensityZones) return;
+
+    // Create new circles
+    filteredZones.forEach(zone => {
+      const circle = new google.maps.Circle({
+        map: mapRef.current,
+        center: zone.center,
+        radius: zone.radius,
+        fillColor: DENSITY_COLORS[zone.density].fill,
+        fillOpacity: 0.4,
+        strokeColor: DENSITY_COLORS[zone.density].stroke,
+        strokeOpacity: 0.8,
+        strokeWeight: 2,
+        clickable: false,
+        zIndex: zone.density === 'high' ? 1 : zone.density === 'medium' ? 2 : 3,
+      });
+      circlesRef.current.push(circle);
+    });
+
+    return () => {
+      circlesRef.current.forEach(circle => circle.setMap(null));
+      circlesRef.current = [];
+    };
+  }, [filteredZones, showDensityZones, isLoaded]);
 
   // Setup markers and clusterer when map is loaded
   useEffect(() => {
@@ -256,13 +379,13 @@ export default function MapComponent({
       >
         {/* Card Header */}
         <div 
-          className="bg-white rounded-t-xl shadow-lg border cursor-pointer"
+          className={`bg-white shadow-lg border cursor-pointer ${isExpanded ? 'rounded-t-xl' : 'rounded-xl'}`}
           onClick={() => setIsExpanded(!isExpanded)}
         >
           <div className="p-3 flex items-center justify-between">
             <div className="flex items-center gap-2">
               <MapPin className="w-4 h-4 text-red-500" />
-              <span className="font-bold text-gray-800">รายการ SOS</span>
+              <span className="font-bold text-gray-800">SOS</span>
               <span className="bg-red-500 text-white text-xs px-2 py-0.5 rounded-full">
                 {requests.length}
               </span>
@@ -275,7 +398,7 @@ export default function MapComponent({
         
         {/* Card Body */}
         {isExpanded && (
-          <div className="bg-white rounded-b-xl shadow-lg border-x border-b max-h-[calc(100%-52px)] overflow-y-auto">
+          <div className="bg-white shadow-lg border-x border-b max-h-[calc(100%-52px)] overflow-y-auto">
             {requests.length === 0 ? (
               <div className="p-4 text-center text-gray-500">
                 ไม่มีรายการ
@@ -347,6 +470,7 @@ export default function MapComponent({
         onLoad={onMapLoad}
         onClick={() => { if (isExpanded) setIsExpanded(false); }}
       >
+        {/* Density Zones are managed via useEffect */}
         {/* SOS Request InfoWindow */}
         {selectedRequest && (
           <InfoWindow

@@ -27,6 +27,8 @@ export default function MapPage() {
   const [shelters, setShelters] = useState<EvacuationCenter[]>([]);
   const [filter, setFilter] = useState<Severity | 'all'>('all');
   const [showShelters, setShowShelters] = useState(true);
+  const [zoneFilter, setZoneFilter] = useState<'all' | 'high' | 'medium' | 'low'>('all');
+  const [showZones, setShowZones] = useState(true);
   const [showLegend, setShowLegend] = useState(true);
   const [loading, setLoading] = useState(true);
 
@@ -208,6 +210,58 @@ export default function MapPage() {
               </>
             )}
           </div>
+
+          {/* Zone Density Filter */}
+          <div className="flex items-center gap-2 flex-wrap">
+            <span className="text-xs text-gray-500 mr-2">🗺️ โซน:</span>
+            <Button
+              size="sm"
+              variant={showZones ? 'default' : 'outline'}
+              onClick={() => setShowZones(!showZones)}
+              className={`h-7 text-xs ${showZones ? 'bg-blue-600 hover:bg-blue-700' : ''}`}
+            >
+              {showZones ? 'ซ่อน' : 'แสดง'}
+            </Button>
+            {showZones && (
+              <>
+                <Button
+                  size="sm"
+                  variant={zoneFilter === 'all' ? 'default' : 'outline'}
+                  onClick={() => setZoneFilter('all')}
+                  className="h-7 text-xs"
+                >
+                  ทั้งหมด
+                </Button>
+                <Button
+                  size="sm"
+                  variant={zoneFilter === 'high' ? 'default' : 'outline'}
+                  onClick={() => setZoneFilter('high')}
+                  className={`h-7 text-xs ${zoneFilter === 'high' ? 'bg-red-500 hover:bg-red-600' : ''}`}
+                >
+                  <span className="w-2 h-2 bg-red-500 rounded-full mr-1"></span>
+                  หนาแน่น
+                </Button>
+                <Button
+                  size="sm"
+                  variant={zoneFilter === 'medium' ? 'default' : 'outline'}
+                  onClick={() => setZoneFilter('medium')}
+                  className={`h-7 text-xs ${zoneFilter === 'medium' ? 'bg-yellow-500 hover:bg-yellow-600' : ''}`}
+                >
+                  <span className="w-2 h-2 bg-yellow-500 rounded-full mr-1"></span>
+                  ปานกลาง
+                </Button>
+                <Button
+                  size="sm"
+                  variant={zoneFilter === 'low' ? 'default' : 'outline'}
+                  onClick={() => setZoneFilter('low')}
+                  className={`h-7 text-xs ${zoneFilter === 'low' ? 'bg-green-500 hover:bg-green-600' : ''}`}
+                >
+                  <span className="w-2 h-2 bg-green-500 rounded-full mr-1"></span>
+                  เบาบาง
+                </Button>
+              </>
+            )}
+          </div>
         </div>
       )}
 
@@ -217,6 +271,8 @@ export default function MapPage() {
           requests={filteredRequests} 
           shelters={shelters}
           showShelters={showShelters}
+          showDensityZones={showZones}
+          zoneFilter={zoneFilter}
         />
         
         {/* SOS Button Overlay */}
