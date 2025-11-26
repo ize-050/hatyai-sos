@@ -206,6 +206,7 @@ export default function Home() {
       <footer className="bg-gray-800 text-gray-400 text-center py-4 mt-8">
         <p className="text-sm">ศูนย์ประสานงานช่วยเหลือผู้ประสบภัยน้ำท่วม</p>
         <p className="text-xs mt-1">จังหวัดสงขลา</p>
+        <p className="text-xs mt-1">แจ้งได้ทั้ง 2 ช่องทาง : <a href="https://hatyai.help-is-on-the-way.com">https://hatyai.help-is-on-the-way.com</a> , <a href="https://hatyai-sos.vercel.app">https://hatyai-sos.vercel.app</a></p>
       </footer>
     </div>
   );
