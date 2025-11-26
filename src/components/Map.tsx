@@ -1,12 +1,13 @@
 'use client';
 
-import { MapContainer, TileLayer, Marker, Popup } from 'react-leaflet';
+import { useState, useRef, useEffect } from 'react';
+import { MapContainer, TileLayer, Marker, Popup, useMap } from 'react-leaflet';
 import MarkerClusterGroup from 'react-leaflet-cluster';
 import L from 'leaflet';
 import 'leaflet/dist/leaflet.css';
 import { SOSRequest } from '@/lib/types';
 import { EvacuationCenter } from '@/lib/evacuation-types';
-import { Phone, Clock, Users, Navigation } from 'lucide-react';
+import { Phone, Clock, Users, Navigation, MapPin, ChevronUp, ChevronDown } from 'lucide-react';
 
 // SOS Marker Icon (teardrop shape)
 const createSOSIcon = (color: string, icons: string[] = []) => {
@@ -165,6 +166,36 @@ interface MapComponentProps {
   showShelters?: boolean;
 }
 
+// Component to handle map fly to location and open popup
+function FlyToLocation({ 
+  position, 
+  trigger,
+  markerRefs,
+  selectedId 
+}: { 
+  position: [number, number] | null; 
+  trigger: number;
+  markerRefs: React.MutableRefObject<{ [key: string]: L.Marker | null }>;
+  selectedId: string | null;
+}) {
+  const map = useMap();
+  
+  useEffect(() => {
+    if (position && trigger > 0) {
+      map.flyTo(position, 16, { duration: 0.8 });
+      
+      // Open popup after fly animation completes
+      if (selectedId && markerRefs.current[selectedId]) {
+        setTimeout(() => {
+          markerRefs.current[selectedId]?.openPopup();
+        }, 900);
+      }
+    }
+  }, [position, trigger, selectedId, map, markerRefs]);
+  
+  return null;
+}
+
 // Helper function to open Google Maps navigation
 const openNavigation = (lat: number, lng: number) => {
   window.open(`https://www.google.com/maps/dir/?api=1&destination=${lat},${lng}`, '_blank');
@@ -177,17 +208,136 @@ export default function MapComponent({
   zoom = 13,
   showShelters = true,
 }: MapComponentProps) {
+  const [isExpanded, setIsExpanded] = useState(false);
+  const [flyToPosition, setFlyToPosition] = useState<[number, number] | null>(null);
+  const [flyTrigger, setFlyTrigger] = useState(0);
+  const [selectedId, setSelectedId] = useState<string | null>(null);
+  const markerRefs = useRef<{ [key: string]: L.Marker | null }>({});
+
+  const handleCaseClick = (request: ExtendedSOSRequest) => {
+    setFlyToPosition([request.latitude, request.longitude]);
+    setFlyTrigger(prev => prev + 1);
+    setSelectedId(request.id);
+    setIsExpanded(false); // ปิด card หลังคลิก
+  };
+
   return (
-    <MapContainer
-      center={center}
-      zoom={zoom}
-      className="w-full h-full"
-      style={{ height: '100%', width: '100%' }}
-    >
-      <TileLayer
-        attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>'
-        url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
-      />
+    <div className="relative w-full h-full">
+      {/* Floating Card */}
+      <div className={`
+        absolute z-[1000] transition-all duration-300 ease-in-out
+        left-2 right-2 md:left-auto md:right-4 md:w-80
+        ${isExpanded 
+          ? 'top-2 bottom-20 md:bottom-4' 
+          : 'top-2'
+        }
+      `}>
+        {/* Card Header - Always visible */}
+        <div 
+          className="bg-white rounded-t-xl shadow-lg border cursor-pointer"
+          onClick={() => setIsExpanded(!isExpanded)}
+        >
+          <div className="p-3 flex items-center justify-between">
+            <div className="flex items-center gap-2">
+              <MapPin className="w-4 h-4 text-red-500" />
+              <span className="font-bold text-gray-800">รายการ SOS</span>
+              <span className="bg-red-500 text-white text-xs px-2 py-0.5 rounded-full">
+                {requests.length}
+              </span>
+            </div>
+            <button className="p-1 hover:bg-gray-100 rounded">
+              {isExpanded ? <ChevronUp className="w-5 h-5" /> : <ChevronDown className="w-5 h-5" />}
+            </button>
+          </div>
+        </div>
+        
+        {/* Card Body - Expandable */}
+        {isExpanded && (
+          <div className="bg-white rounded-b-xl shadow-lg border-x border-b max-h-[calc(100%-52px)] overflow-y-auto">
+            {requests.length === 0 ? (
+              <div className="p-4 text-center text-gray-500">
+                ไม่มีรายการ
+              </div>
+            ) : (
+              requests.map((request) => (
+                <div
+                  key={request.id}
+                  onClick={() => handleCaseClick(request)}
+                  className={`p-3 border-b cursor-pointer hover:bg-blue-50 transition-colors ${
+                    selectedId === request.id ? 'bg-blue-100 border-l-4 border-l-blue-500' : ''
+                  }`}
+                >
+                  {/* Severity Badge */}
+                  <div className="flex items-center gap-2 mb-1">
+                    <span 
+                      className="w-3 h-3 rounded-full" 
+                      style={{ backgroundColor: severityColors[request.severity] }}
+                    />
+                    <span className={`text-xs font-medium ${
+                      request.severity === 'high' ? 'text-red-600' :
+                      request.severity === 'medium' ? 'text-yellow-600' : 'text-green-600'
+                    }`}>
+                      {severityLabels[request.severity]}
+                    </span>
+                    <span className="text-xs text-gray-400">
+                      {helpTypeLabels[request.helpType]}
+                    </span>
+                  </div>
+                  
+                  {/* Name */}
+                  <h3 className="font-medium text-gray-800 text-sm">{request.name}</h3>
+                  
+                  {/* Vulnerable Icons */}
+                  {(request.hasChildren || request.hasElderly || request.hasDisabled || request.hasPregnant) && (
+                    <div className="flex items-center gap-1 mt-1">
+                      {request.hasChildren && <span className="text-xs">👶</span>}
+                      {request.hasElderly && <span className="text-xs">👴</span>}
+                      {request.hasDisabled && <span className="text-xs">♿</span>}
+                      {request.hasPregnant && <span className="text-xs">🤰</span>}
+                    </div>
+                  )}
+                  
+                  {/* Phone & Time */}
+                  <div className="flex items-center justify-between mt-1">
+                    <span className="text-xs text-blue-600">{request.phone}</span>
+                    <span className="text-xs text-gray-400">
+                      {request.createdAt.toLocaleTimeString('th-TH', { hour: '2-digit', minute: '2-digit' })}
+                    </span>
+                  </div>
+                  
+                  {/* Status */}
+                  <span className={`inline-block mt-1 text-xs px-2 py-0.5 rounded ${
+                    request.status === 'pending' ? 'bg-orange-100 text-orange-700' :
+                    request.status === 'in_progress' ? 'bg-blue-100 text-blue-700' :
+                    'bg-green-100 text-green-700'
+                  }`}>
+                    {request.status === 'pending' ? 'รอดำเนินการ' :
+                     request.status === 'in_progress' ? 'กำลังช่วยเหลือ' : 'เสร็จสิ้น'}
+                  </span>
+                </div>
+              ))
+            )}
+          </div>
+        )}
+      </div>
+
+      {/* Map */}
+      <MapContainer
+        center={center}
+        zoom={zoom}
+        className="w-full h-full"
+        style={{ height: '100%', width: '100%' }}
+      >
+        <FlyToLocation 
+          position={flyToPosition} 
+          trigger={flyTrigger} 
+          markerRefs={markerRefs}
+          selectedId={selectedId}
+        />
+        <TileLayer
+          attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>'
+          url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
+        />
       
       {/* SOS Request Markers - with clustering */}
       <MarkerClusterGroup
@@ -201,6 +351,7 @@ export default function MapComponent({
           <Marker
             key={request.id}
             position={[request.latitude, request.longitude]}
+            ref={(ref) => { markerRefs.current[request.id] = ref; }}
             icon={createSOSIcon(
               severityColors[request.severity],
               [
@@ -361,6 +512,7 @@ export default function MapComponent({
           </Popup>
         </Marker>
       ))}
-    </MapContainer>
+      </MapContainer>
+    </div>
   );
 }

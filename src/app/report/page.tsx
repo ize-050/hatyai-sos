@@ -4,11 +4,25 @@ import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { ArrowLeft, MapPin, Loader2, AlertTriangle } from 'lucide-react';
+import dynamic from 'next/dynamic';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+
+// Dynamic import for LocationPicker to avoid SSR issues with Leaflet
+const LocationPicker = dynamic(() => import('@/components/LocationPicker'), {
+  ssr: false,
+  loading: () => (
+    <div className="w-full h-[250px] bg-gray-200 rounded-lg flex items-center justify-center">
+      <div className="text-center">
+        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600 mx-auto"></div>
+        <p className="mt-2 text-gray-500 text-sm">กำลังโหลดแผนที่...</p>
+      </div>
+    </div>
+  ),
+});
 import {
   Select,
   SelectContent,
@@ -74,7 +88,7 @@ export default function ReportPage() {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     
-    if (!formData.phone || !formData.helpType || !formData.severity) {
+    if ( !formData.helpType || !formData.severity) {
       alert('กรุณากรอกข้อมูลที่จำเป็น');
       return;
     }
@@ -111,7 +125,7 @@ export default function ReportPage() {
   return (
     <div className="min-h-screen bg-gray-100">
       {/* Header */}
-      <header className="bg-[#FF3B30] text-white py-4 px-4 sticky top-0 z-10">
+      <header className="bg-[#FF3B30] text-white py-4 px-4 sticky top-0 z-[1001]">
         <div className="max-w-lg mx-auto flex items-center gap-3">
           <Link href="/">
             <Button variant="ghost" size="icon" className="text-white hover:bg-red-700">
@@ -136,11 +150,23 @@ export default function ReportPage() {
               </CardTitle>
             </CardHeader>
             <CardContent className="space-y-3">
+              {/* Map Location Picker */}
+              <LocationPicker
+                latitude={formData.latitude}
+                longitude={formData.longitude}
+                onLocationChange={(lat, lng) => {
+                  setFormData(prev => ({ ...prev, latitude: lat, longitude: lng }));
+                  setLocationError(null);
+                }}
+              />
+              
+              {/* GPS Button */}
               <Button
                 type="button"
                 onClick={getLocation}
                 disabled={isGettingLocation}
-                className="w-full bg-blue-600 hover:bg-blue-700"
+                variant="outline"
+                className="w-full"
               >
                 {isGettingLocation ? (
                   <>
@@ -150,7 +176,7 @@ export default function ReportPage() {
                 ) : (
                   <>
                     <MapPin className="w-4 h-4 mr-2" />
-                    📍 ระบุตำแหน่งอัตโนมัติ
+                    📍 ใช้ตำแหน่ง GPS ปัจจุบัน
                   </>
                 )}
               </Button>
@@ -158,37 +184,6 @@ export default function ReportPage() {
               {locationError && (
                 <p className="text-red-600 text-sm">{locationError}</p>
               )}
-              
-              {formData.latitude !== 0 && (
-                <div className="text-sm text-green-700 bg-green-100 p-2 rounded">
-                  ✅ พิกัด: {formData.latitude.toFixed(6)}, {formData.longitude.toFixed(6)}
-                </div>
-              )}
-              
-              <div className="grid grid-cols-2 gap-2">
-                <div>
-                  <Label className="text-xs">Latitude</Label>
-                  <Input
-                    type="number"
-                    step="any"
-                    value={formData.latitude || ''}
-                    onChange={(e) => setFormData(prev => ({ ...prev, latitude: parseFloat(e.target.value) || 0 }))}
-                    placeholder="7.0086"
-                    className="text-sm"
-                  />
-                </div>
-                <div>
-                  <Label className="text-xs">Longitude</Label>
-                  <Input
-                    type="number"
-                    step="any"
-                    value={formData.longitude || ''}
-                    onChange={(e) => setFormData(prev => ({ ...prev, longitude: parseFloat(e.target.value) || 0 }))}
-                    placeholder="100.4747"
-                    className="text-sm"
-                  />
-                </div>
-              </div>
             </CardContent>
           </Card>
 
@@ -208,12 +203,11 @@ export default function ReportPage() {
 
               <div>
                 <Label htmlFor="phone" className="flex items-center gap-1">
-                  เบอร์โทรศัพท์ <span className="text-red-500">*</span>
+                  เบอร์โทรศัพท์ (ถ้ามี)
                 </Label>
                 <Input
                   id="phone"
                   type="tel"
-                  required
                   value={formData.phone}
                   onChange={(e) => setFormData(prev => ({ ...prev, phone: e.target.value }))}
                   placeholder="08X-XXX-XXXX"
