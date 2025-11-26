@@ -171,27 +171,37 @@ function FlyToLocation({
   position, 
   trigger,
   markerRefs,
-  selectedId 
+  selectedId,
+  clusterGroupRef
 }: { 
   position: [number, number] | null; 
   trigger: number;
   markerRefs: React.MutableRefObject<{ [key: string]: L.Marker | null }>;
   selectedId: string | null;
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  clusterGroupRef: React.MutableRefObject<any>;
 }) {
   const map = useMap();
   
   useEffect(() => {
-    if (position && trigger > 0) {
-      map.flyTo(position, 16, { duration: 0.8 });
+    if (position && trigger > 0 && selectedId) {
+      const marker = markerRefs.current[selectedId];
+      const clusterGroup = clusterGroupRef.current;
       
-      // Open popup after fly animation completes
-      if (selectedId && markerRefs.current[selectedId]) {
-        setTimeout(() => {
-          markerRefs.current[selectedId]?.openPopup();
-        }, 900);
+      if (marker && clusterGroup) {
+        // Zoom to marker and spiderfy if in cluster
+        clusterGroup.zoomToShowLayer(marker, () => {
+          // Open popup after zoom/spiderfy animation completes
+          setTimeout(() => {
+            marker.openPopup();
+          }, 300);
+        });
+      } else {
+        // Fallback: just fly to position
+        map.flyTo(position, 16, { duration: 0.8 });
       }
     }
-  }, [position, trigger, selectedId, map, markerRefs]);
+  }, [position, trigger, selectedId, map, markerRefs, clusterGroupRef]);
   
   return null;
 }
@@ -213,6 +223,8 @@ export default function MapComponent({
   const [flyTrigger, setFlyTrigger] = useState(0);
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const markerRefs = useRef<{ [key: string]: L.Marker | null }>({});
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const clusterGroupRef = useRef<any>(null);
 
   const handleCaseClick = (request: ExtendedSOSRequest) => {
     setFlyToPosition([request.latitude, request.longitude]);
@@ -333,6 +345,7 @@ export default function MapComponent({
           trigger={flyTrigger} 
           markerRefs={markerRefs}
           selectedId={selectedId}
+          clusterGroupRef={clusterGroupRef}
         />
         <TileLayer
           attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>'
@@ -341,6 +354,7 @@ export default function MapComponent({
       
       {/* SOS Request Markers - with clustering */}
       <MarkerClusterGroup
+        ref={clusterGroupRef}
         chunkedLoading
         iconCreateFunction={createClusterCustomIcon}
         maxClusterRadius={60}
