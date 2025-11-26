@@ -9,8 +9,8 @@ import { supabase } from '@/lib/supabase';
 import { SOSRequest, Severity, HelpType } from '@/lib/types';
 import { EvacuationCenter } from '@/lib/evacuation-types';
 
-// Dynamic import for Map component to avoid SSR issues with Leaflet
-const MapComponent = dynamic(() => import('@/components/Map'), {
+// Dynamic import for Map component to avoid SSR issues with Google Maps
+const MapComponent = dynamic(() => import('@/components/MapGoogle'), {
   ssr: false,
   loading: () => (
     <div className="w-full h-full bg-gray-200 flex items-center justify-center">
