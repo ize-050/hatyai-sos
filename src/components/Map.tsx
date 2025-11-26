@@ -1,6 +1,7 @@
 'use client';
 
 import { MapContainer, TileLayer, Marker, Popup } from 'react-leaflet';
+import MarkerClusterGroup from 'react-leaflet-cluster';
 import L from 'leaflet';
 import 'leaflet/dist/leaflet.css';
 import { SOSRequest } from '@/lib/types';
@@ -114,6 +115,40 @@ const severityLabels = {
   low: 'ไม่เร่งด่วน',
 };
 
+// Custom cluster icon
+const createClusterCustomIcon = (cluster: { getChildCount: () => number }) => {
+  const count = cluster.getChildCount();
+  let size = 30;
+  let color = '#3B82F6'; // blue
+
+  if (count >= 10) {
+    size = 50;
+    color = '#EF4444'; // red
+  } else if (count >= 5) {
+    size = 40;
+    color = '#F59E0B'; // yellow
+  }
+
+  return L.divIcon({
+    html: `<div style="
+      background-color: ${color};
+      width: ${size}px;
+      height: ${size}px;
+      border-radius: 50%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      color: white;
+      font-weight: bold;
+      font-size: 14px;
+      border: 3px solid white;
+      box-shadow: 0 2px 5px rgba(0,0,0,0.3);
+    ">${count}</div>`,
+    className: 'custom-cluster-icon',
+    iconSize: L.point(size, size, true),
+  });
+};
+
 interface ExtendedSOSRequest extends SOSRequest {
   hasChildren?: boolean;
   hasElderly?: boolean;
@@ -154,77 +189,94 @@ export default function MapComponent({
         url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
       />
       
-      {/* SOS Request Markers */}
-      {requests.map((request) => (
-        <Marker
-          key={request.id}
-          position={[request.latitude, request.longitude]}
-          icon={createSOSIcon(
-            severityColors[request.severity],
-            [
-              request.hasChildren ? '👶' : '',
-              request.hasElderly ? '👴' : '',
-              request.hasDisabled ? '♿' : '',
-              request.hasPregnant ? '🤰' : '',
-            ].filter(Boolean)
-          )}
-        >
-          <Popup>
-            <div className="min-w-[200px]">
-              <div className={`text-white text-xs font-bold px-2 py-1 rounded mb-2 ${
-                request.severity === 'high' ? 'bg-red-500' :
-                request.severity === 'medium' ? 'bg-yellow-500' : 'bg-green-500'
-              }`}>
-                {severityLabels[request.severity]} - {helpTypeLabels[request.helpType]}
-              </div>
-              
-              <h3 className="font-bold text-gray-800">{request.name}</h3>
-              
-              {/* Vulnerable People Icons */}
-              {(request.hasChildren || request.hasElderly || request.hasDisabled || request.hasPregnant) && (
-                <div className="flex items-center gap-1 mt-1 p-1 bg-orange-100 rounded">
-                  {request.hasChildren && <span title="มีเด็กเล็ก">👶</span>}
-                  {request.hasElderly && <span title="มีผู้สูงอายุ">👴</span>}
-                  {request.hasDisabled && <span title="มีผู้พิการ">♿</span>}
-                  {request.hasPregnant && <span title="มีหญิงตั้งครรภ์">🤰</span>}
-                  {request.peopleCount && request.peopleCount > 1 && (
-                    <span className="text-xs text-orange-700 ml-1">({request.peopleCount} คน)</span>
-                  )}
-                </div>
-              )}
-              
-              <div className="flex items-center gap-1 text-sm text-gray-600 mt-1">
-                <Phone className="w-3 h-3" />
-                <a href={`tel:${request.phone}`} className="text-blue-600 hover:underline">
-                  {request.phone}
-                </a>
-              </div>
-              
-              {request.description && (
-                <p className="text-sm text-gray-600 mt-2 border-t pt-2">
-                  {request.description}
-                </p>
-              )}
-              
-              <div className="flex items-center gap-1 text-xs text-gray-400 mt-2">
-                <Clock className="w-3 h-3" />
-                {request.createdAt.toLocaleString('th-TH')}
-              </div>
-              
-              <div className="mt-2 pt-2 border-t">
-                <span className={`text-xs px-2 py-1 rounded ${
-                  request.status === 'pending' ? 'bg-orange-100 text-orange-700' :
-                  request.status === 'in_progress' ? 'bg-blue-100 text-blue-700' :
-                  'bg-green-100 text-green-700'
+      {/* SOS Request Markers - with clustering */}
+      <MarkerClusterGroup
+        chunkedLoading
+        iconCreateFunction={createClusterCustomIcon}
+        maxClusterRadius={60}
+        spiderfyOnMaxZoom={true}
+        showCoverageOnHover={false}
+      >
+        {requests.map((request) => (
+          <Marker
+            key={request.id}
+            position={[request.latitude, request.longitude]}
+            icon={createSOSIcon(
+              severityColors[request.severity],
+              [
+                request.hasChildren ? '👶' : '',
+                request.hasElderly ? '👴' : '',
+                request.hasDisabled ? '♿' : '',
+                request.hasPregnant ? '🤰' : '',
+              ].filter(Boolean)
+            )}
+          >
+            <Popup>
+              <div className="min-w-[200px]">
+                <div className={`text-white text-xs font-bold px-2 py-1 rounded mb-2 ${
+                  request.severity === 'high' ? 'bg-red-500' :
+                  request.severity === 'medium' ? 'bg-yellow-500' : 'bg-green-500'
                 }`}>
-                  {request.status === 'pending' ? 'รอดำเนินการ' :
-                   request.status === 'in_progress' ? 'กำลังช่วยเหลือ' : 'เสร็จสิ้น'}
-                </span>
+                  {severityLabels[request.severity]} - {helpTypeLabels[request.helpType]}
+                </div>
+                
+                <h3 className="font-bold text-gray-800">{request.name}</h3>
+                
+                {/* Vulnerable People Icons */}
+                {(request.hasChildren || request.hasElderly || request.hasDisabled || request.hasPregnant) && (
+                  <div className="flex items-center gap-1 mt-1 p-1 bg-orange-100 rounded">
+                    {request.hasChildren && <span title="มีเด็กเล็ก">👶</span>}
+                    {request.hasElderly && <span title="มีผู้สูงอายุ">👴</span>}
+                    {request.hasDisabled && <span title="มีผู้พิการ">♿</span>}
+                    {request.hasPregnant && <span title="มีหญิงตั้งครรภ์">🤰</span>}
+                    {request.peopleCount && request.peopleCount > 1 && (
+                      <span className="text-xs text-orange-700 ml-1">({request.peopleCount} คน)</span>
+                    )}
+                  </div>
+                )}
+                
+                <div className="flex items-center gap-1 text-sm text-gray-600 mt-1">
+                  <Phone className="w-3 h-3" />
+                  <a href={`tel:${request.phone}`} className="text-blue-600 hover:underline">
+                    {request.phone}
+                  </a>
+                </div>
+                
+                {request.description && (
+                  <p className="text-sm text-gray-600 mt-2 border-t pt-2">
+                    {request.description}
+                  </p>
+                )}
+                
+                <div className="flex items-center gap-1 text-xs text-gray-400 mt-2">
+                  <Clock className="w-3 h-3" />
+                  {request.createdAt.toLocaleString('th-TH')}
+                </div>
+                
+                <div className="mt-2 pt-2 border-t flex items-center justify-between">
+                  <span className={`text-xs px-2 py-1 rounded ${
+                    request.status === 'pending' ? 'bg-orange-100 text-orange-700' :
+                    request.status === 'in_progress' ? 'bg-blue-100 text-blue-700' :
+                    'bg-green-100 text-green-700'
+                  }`}>
+                    {request.status === 'pending' ? 'รอดำเนินการ' :
+                     request.status === 'in_progress' ? 'กำลังช่วยเหลือ' : 'เสร็จสิ้น'}
+                  </span>
+                </div>
+                
+                {/* Navigation Button */}
+                <button
+                  onClick={() => openNavigation(request.latitude, request.longitude)}
+                  className="w-full mt-3 flex items-center justify-center gap-2 bg-blue-500 hover:bg-blue-600 text-white text-sm font-medium py-2 px-3 rounded transition-colors"
+                >
+                  <Navigation className="w-4 h-4" />
+                  นำทาง Google Maps
+                </button>
               </div>
-            </div>
-          </Popup>
-        </Marker>
-      ))}
+            </Popup>
+          </Marker>
+        ))}
+      </MarkerClusterGroup>
 
       {/* Evacuation Center Markers */}
       {showShelters && shelters.map((shelter) => (
