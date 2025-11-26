@@ -23,6 +23,7 @@ const mapOptions: google.maps.MapOptions = {
   streetViewControl: false,
   mapTypeControl: false,
   fullscreenControl: false,
+  gestureHandling: 'greedy',
 };
 
 // Create custom marker icon
