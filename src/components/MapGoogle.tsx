@@ -181,6 +181,7 @@ export default function MapComponent({
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [selectedRequest, setSelectedRequest] = useState<ExtendedSOSRequest | null>(null);
   const [selectedShelter, setSelectedShelter] = useState<EvacuationCenter | null>(null);
+  const [mapReady, setMapReady] = useState(false);
   
   const mapRef = useRef<google.maps.Map | null>(null);
   const markersRef = useRef<{ [key: string]: google.maps.Marker }>({});
@@ -191,6 +192,7 @@ export default function MapComponent({
 
   const onMapLoad = useCallback((map: google.maps.Map) => {
     mapRef.current = map;
+    setMapReady(true);
   }, []);
 
   // Calculate density zones (memoized)
@@ -214,7 +216,7 @@ export default function MapComponent({
     circlesRef.current = [];
 
     // Only create circles if showDensityZones is true and map is ready
-    if (!mapRef.current || !showDensityZones) return;
+    if (!mapRef.current || !mapReady || !showDensityZones) return;
 
     // Create new circles
     filteredZones.forEach(zone => {
@@ -237,11 +239,11 @@ export default function MapComponent({
       circlesRef.current.forEach(circle => circle.setMap(null));
       circlesRef.current = [];
     };
-  }, [filteredZones, showDensityZones, isLoaded]);
+  }, [filteredZones, showDensityZones, mapReady]);
 
   // Setup markers and clusterer when map is loaded
   useEffect(() => {
-    if (!mapRef.current || !isLoaded) return;
+    if (!mapRef.current || !mapReady) return;
 
     // Clear existing markers
     Object.values(markersRef.current).forEach(marker => marker.setMap(null));
@@ -330,7 +332,7 @@ export default function MapComponent({
         clustererRef.current.clearMarkers();
       }
     };
-  }, [requests, shelters, showShelters, isLoaded]);
+  }, [requests, shelters, showShelters, mapReady]);
 
   const handleCaseClick = (request: ExtendedSOSRequest) => {
     setSelectedRequest(request);
