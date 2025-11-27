@@ -11,8 +11,8 @@ import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 
-// Dynamic import for LocationPicker (Google Maps version)
-const LocationPicker = dynamic(() => import('@/components/LocationPickerGoogle'), {
+// Dynamic import for LocationPicker (Leaflet version)
+const LocationPicker = dynamic(() => import('@/components/LocationPicker'), {
   ssr: false,
   loading: () => (
     <div className="w-full h-[250px] bg-gray-200 rounded-lg flex items-center justify-center">
